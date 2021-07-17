@@ -12,21 +12,23 @@ import math
 ## Class Principale
 
 class Pixel:
-    def __init__(self,action):
-        self.m=1
-        self.action = action #fonction action(dt,grille) qui renvoie une liste d'actions à effectuer
+    def __init__(self,color,action):
+        self.color = color
+        self.action = action #fonction action((i,j),grille,new_grille,dt) qui modifie la grille
 
 class PixelEngine:
     def __init__(self,N,pixels):
         self.N = N #taille_grille
         self.pixels = pixels
         self.grille = np.zeros((N,N),dtype=np.int16)
+        self.new_grille = np.zeros((N,N),dtype=np.int16)
         self.t = time.time()
 
         # update_grille
         for i in range(N):
             for j in range(N):
                 self.grille[i,j]=-1
+                self.new_grille[i,j]=-1
 
     def coord_to_grille(self,x,y):
         return N//2+int(x),N//2+int(y)
@@ -36,10 +38,12 @@ class PixelEngine:
 
     def evolve(self,to_update):
         dt = (time.time()-self.t)
-        actions = []
         for i,j in to_update:
-            pixel = self.grille[i,j]
-            actions.append(self.pixels[pixel].action(self.grille,dt))
+            pixel_id = self.grille[i,j]
+            if pixel_id>=0:
+                self.pixels[pixel_id].action((i,j),self.grille,self.new_grille,dt)
+
+        self.grille = np.copy(self.new_grille)
 
         self.t +=dt
 
@@ -67,28 +71,48 @@ class Fenetre(Canvas):
         #pixels
         for i in range(self.monde.N):
             for j in range(self.monde.N):
-                pixel = self.monde.grille[i,j]
+                pixel_id = self.monde.grille[i,j]
 
-                if pixel == -1:
+                if pixel_id == -1:
                     color = (0,0,0)
                 else:
-                    color = (255,255,255)
+                    color = self.monde.pixels[pixel_id].color
                 px,py = self.pixel(i,j)
                 w,h = self.echelle*1, self.echelle*1
                 pygame.draw.rect(self.canvas,color,(px,py,w+1,h+1))
 
     def action(self):
-        self.monde.evolve([])
-    # time.sleep(0.1)
+        to_update = [ (i,j) for i in range(self.monde.N) for j in range(self.monde.N) ]
+        self.monde.evolve(to_update)
 
 ## main
 
-pixelEngine = PixelEngine(100,[]) #PixelEngine.load("pixelEngine.obj")#
-pixelEngine.grille[50,50]=1
+
+def action_sable(coord,grille,new_grille,dt):
+    i,j = coord
+    if j>0 and i>0 and i<grille.shape[0]-1:
+        if grille[i,j-1]==-1:
+            new_grille[i,j]=-1
+            new_grille[i,j-1]=0
+        elif grille[i-1,j-1] == -1:
+            new_grille[i,j]=-1
+            new_grille[i-1,j-1]=0
+        elif grille[i+1,j-1] == -1:
+            new_grille[i,j]=-1
+            new_grille[i+1,j-1]=0
+
+    new_grille[grille.shape[0]//2,grille.shape[1]//2]=0
+
+sable = Pixel((180,180,0),action_sable)
+
+pixels = [sable]
+N = 100
+pixelEngine = PixelEngine(N,pixels) #PixelEngine.load("pixelEngine.obj")#
+pixelEngine.grille[10,10]=0
 
 fenetre = Fenetre(pixelEngine, 1200, 800)
 fenetre.run()
-monde.save("pixelEngine.obj")
+pixelEngine.save("pixelEngine.obj")
 
 
 
