@@ -1,6 +1,6 @@
 ## Imports
 
-from fenetre.canvas import Canvas
+from canvas import Canvas
 import pickle
 import numpy as np
 import pygame
@@ -31,10 +31,10 @@ class PixelEngine:
                 self.new_grille[i,j]=-1
 
     def coord_to_grille(self,x,y):
-        return N//2+int(x),N//2+int(y)
+        return self.N//2+int(x),self.N//2+int(y)
 
     def grille_to_coord(self,i,j):
-        return i-N//2,j-N//2
+        return i-self.N//2,j-self.N//2
 
     def evolve(self,to_update):
         dt = (time.time()-self.t)
@@ -63,6 +63,7 @@ class PixelEngine:
 class Fenetre(Canvas):
     def __init__(self, monde, taillex, tailley):
         Canvas.__init__(self, monde, taillex, tailley)
+        self.create_pixel = False
 
     def afficher(self):
         # background
@@ -77,13 +78,64 @@ class Fenetre(Canvas):
                     color = (0,0,0)
                 else:
                     color = self.monde.pixels[pixel_id].color
-                px,py = self.pixel(i,j)
+                x,y = self.monde.grille_to_coord(i,j)
+                px,py = self.pixel(x,y)
                 w,h = self.echelle*1, self.echelle*1
                 pygame.draw.rect(self.canvas,color,(px,py,w+1,h+1))
 
     def action(self):
         to_update = [ (i,j) for i in range(self.monde.N) for j in range(self.monde.N) ]
         self.monde.evolve(to_update)
+
+    def handleEvent(self,event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 3:#right button
+            self.create_pixel = True
+
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:#left button
+            (x,y)= pygame.mouse.get_pos()
+            self.Xmouse = x
+            self.Ymouse = y
+
+            self.Xram = self.X
+            self.Yram = self.Y
+            self.translate = True
+
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 4: #mousewheel up
+            self.echelle *= 1.5
+
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 5: #mousewheel down
+            self.echelle /= 1.5
+
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            print(event.button)
+
+        elif  self.translate and event.type == pygame.MOUSEMOTION:
+            (x,y)=pygame.mouse.get_pos()
+            self.X = self.Xram+self.sensibilite*(self.Xmouse-x)/self.echelle
+            self.Y = self.Yram+self.sensibilite*(y-self.Ymouse)/self.echelle
+
+        elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:#left button
+            self.translate = False
+
+        elif event.type == pygame.MOUSEBUTTONUP and event.button == 3: #right button
+            self.create_pixel = False
+
+        elif event.type == pygame.KEYDOWN:
+            if event.key == 119: #z
+                print("z")
+            else:
+                print(event.key)
+
+        elif self.create_pixel :
+            (px, py) = pygame.mouse.get_pos()
+
+            x, y = self.coord(px, py)
+            print(x, y)
+            i, j = self.monde.coord_to_grille(x, y)
+            self.monde.grille[i, j] = 0
+
+        #TODO: Mettre les evenements que l'on veut
+
 
 ## main
 
@@ -101,14 +153,11 @@ def action_sable(coord,grille,new_grille,dt):
             new_grille[i,j]=-1
             new_grille[i+1,j-1]=0
 
-    new_grille[grille.shape[0]//2,grille.shape[1]//2]=0
-
-sable = Pixel((180,180,0),action_sable)
+sable = Pixel((200,150,0),action_sable)
 
 pixels = [sable]
 N = 100
 pixelEngine = PixelEngine(N,pixels) #PixelEngine.load("pixelEngine.obj")#
-pixelEngine.grille[10,10]=0
 
 fenetre = Fenetre(pixelEngine, 1200, 800)
 fenetre.run()
