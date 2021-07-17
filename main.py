@@ -15,22 +15,22 @@ class Monde:
     def __init__(self,N):
         self.N = N
         self.pixels = np.zeros((N,4))
-        self.grille = np.zeros((200,200),dtype=np.int16)
+        #self.grille = np.zeros((200,200),dtype=np.int16)
         self.t = time.time()
 
         for k in range(N):
-            self.pixels[k,0] = random.randint(0,10)
-            self.pixels[k,1] = random.randint(0,10)
+            self.pixels[k,0] = random.random()
+            self.pixels[k,1] = random.random()
 
-        # update_grille
-        for i in range(200):
-            for j in range(200):
-                self.grille[i,j]=-1
-        for k in range(N):
-            self.grille[int(self.pixels[k,0])+100,int(self.pixels[k,1])+100] = k
+        # # update_grille
+        # for i in range(200):
+        #     for j in range(200):
+        #         self.grille[i,j]=-1
+        # for k in range(N):
+        #     self.grille[int(self.pixels[k,0])+100,int(self.pixels[k,1])+100] = k
 
     def evolve(self):
-        ymin = 0
+        ymin = -50
         dt = (time.time()-self.t)
         for k in range(self.N):
             x,y = int(self.pixels[k,0])+100,int(self.pixels[k,1])+100
@@ -40,16 +40,19 @@ class Monde:
             Fy -= g
 
             #colision
-            k_col = 1
-            for voisin in self.voisins(x,y):
-                d = math.sqrt( (voisin[0]-self.pixels[k,0])**2 + (voisin[1]-self.pixels[k,1])**2)
-                ux = (voisin[0]-self.pixels[k,0])/d; uy = (voisin[1]-self.pixels[k,1])/d
-                Fx += ux*k_col*(d-1); Fy += uy*k_col*(d-1)
+            k_col = 1; f_liaison = 0.8
+            d0 = 1
+            for l in range(self.pixels.shape[0]):
+                if l != k:
+                    d = math.sqrt( (self.pixels[l,0]-self.pixels[k,0])**2 + (self.pixels[l,1]-self.pixels[k,1])**2)
+                    ux = (self.pixels[l,0]-self.pixels[k,0])/d; uy = (self.pixels[l,1]-self.pixels[k,1])/d
+                    v = (self.pixels[k,2]-self.pixels[l,2])*ux+(self.pixels[k,3]-self.pixels[l,3])*uy
+                    Fx += ux*(k_col*(d-d0)-f_liaison*v); Fy += uy*(k_col*(d-d0)-f_liaison*v)
 
             #frottements
-            f=0.1
-            Fx -= f*self.pixels[k,2]
-            Fy -= f*self.pixels[k,3]
+            f_global=0.1
+            Fx -= f_global*self.pixels[k,2]
+            Fy -= f_global*self.pixels[k,3]
 
             # vitesse
             self.pixels[k,2] += Fx*dt/m
@@ -64,10 +67,10 @@ class Monde:
                 self.pixels[k,1]=ymin
                 self.pixels[k,3] = -self.pixels[k,3]
 
-            #grille
-            x2,y2 = int(self.pixels[k,0])+100,int(self.pixels[k,1])+100
-            self.grille[x,y]=-1
-            self.grille[x2,y2]=k
+            # #grille
+            # x2,y2 = int(self.pixels[k,0])+100,int(self.pixels[k,1])+100
+            # self.grille[x,y]=-1
+            # self.grille[x2,y2]=k
 
         self.t +=dt
 
@@ -117,7 +120,7 @@ class Fenetre(Canvas):
 
 ## main
 
-monde = Monde(10) #Monde.load("treeSurvival.obj")#
+monde = Monde(15) #Monde.load("treeSurvival.obj")#
 
 fenetre = Fenetre(monde, 1200, 800)
 fenetre.run()

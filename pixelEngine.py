@@ -21,14 +21,14 @@ class PixelEngine:
         self.N = N #taille_grille
         self.pixels = pixels
         self.grille = np.zeros((N,N),dtype=np.int16)
-        self.new_grille = np.zeros((N,N),dtype=np.int16)
         self.t = time.time()
+
+        self.to_update = []
 
         # update_grille
         for i in range(N):
             for j in range(N):
                 self.grille[i,j]=-1
-                self.new_grille[i,j]=-1
 
     def coord_to_grille(self,x,y):
         return self.N//2+int(x),self.N//2+int(y)
@@ -38,14 +38,23 @@ class PixelEngine:
 
     def evolve(self,to_update):
         dt = (time.time()-self.t)
+
+        #calculs changements
+        changements = []
         for i,j in to_update:
             pixel_id = self.grille[i,j]
             if pixel_id>=0:
-                self.pixels[pixel_id].action((i,j),self.grille,self.new_grille,dt)
+                changements += self.pixels[pixel_id].action((i,j),self.grille,dt)
 
-        self.grille = np.copy(self.new_grille)
+        #update grille
+        for (i,j,value) in changements :
+            self.grille[i,j] = value
 
         self.t +=dt
+
+    def set_pixel(self,i,j,value):
+        self.grille[i,j]=value
+        self.to_update.append((i,j))
 
     def save(self,name_file):
         file = open(name_file,'wb',pickle.HIGHEST_PROTOCOL)
@@ -64,6 +73,7 @@ class Fenetre(Canvas):
     def __init__(self, monde, taillex, tailley):
         Canvas.__init__(self, monde, taillex, tailley)
         self.create_pixel = False
+        self.pixel_id = 0
 
     def afficher(self):
         # background
@@ -121,8 +131,10 @@ class Fenetre(Canvas):
             self.create_pixel = False
 
         elif event.type == pygame.KEYDOWN:
-            if event.key == 119: #z
-                print("z")
+            if event.key == 32: #espace
+                self.pixel_id += 1
+                if self.pixel_id >= len(self.monde.pixels):
+                    self.pixel_id = 0
             else:
                 print(event.key)
 
@@ -130,9 +142,8 @@ class Fenetre(Canvas):
             (px, py) = pygame.mouse.get_pos()
 
             x, y = self.coord(px, py)
-            print(x, y)
             i, j = self.monde.coord_to_grille(x, y)
-            self.monde.grille[i, j] = 0
+            self.monde.grille[i, j] = self.pixel_id
 
         #TODO: Mettre les evenements que l'on veut
 
@@ -140,22 +151,46 @@ class Fenetre(Canvas):
 ## main
 
 
-def action_sable(coord,grille,new_grille,dt):
+def action_sable(coord,grille,dt):
+    changements = []
     i,j = coord
     if j>0 and i>0 and i<grille.shape[0]-1:
         if grille[i,j-1]==-1:
-            new_grille[i,j]=-1
-            new_grille[i,j-1]=0
+            changements.append((i,j,-1))
+            changements.append((i,j-1,0))
         elif grille[i-1,j-1] == -1:
-            new_grille[i,j]=-1
-            new_grille[i-1,j-1]=0
+            changements.append((i,j,-1))
+            changements.append((i-1,j-1,0))
         elif grille[i+1,j-1] == -1:
-            new_grille[i,j]=-1
-            new_grille[i+1,j-1]=0
+            changements.append((i,j,-1))
+            changements.append((i+1,j-1,0))
+    return changements
+
+def action_eau(coord,grille,dt):
+    changements = []
+    i,j = coord
+    if j>0 and i>0 and i<grille.shape[0]-1:
+        if grille[i,j-1]==-1:
+            changements.append((i,j,-1))
+            changements.append((i,j-1,1))
+        elif grille[i-1,j-1] == -1:
+            changements.append((i,j,-1))
+            changements.append((i-1,j-1,1))
+        elif grille[i+1,j-1] == -1:
+            changements.append((i,j,-1))
+            changements.append((i+1,j-1,1))
+        elif grille[i-1,j] == -1:
+            changements.append((i,j,-1))
+            changements.append((i-1,j,1))
+        elif grille[i+1,j] == -1:
+            changements.append((i,j,-1))
+            changements.append((i+1,j,1))
+    return changements
 
 sable = Pixel((200,150,0),action_sable)
+eau = Pixel((0,0,180),action_eau)
 
-pixels = [sable]
+pixels = [sable,eau]
 N = 100
 pixelEngine = PixelEngine(N,pixels) #PixelEngine.load("pixelEngine.obj")#
 
