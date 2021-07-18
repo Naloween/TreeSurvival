@@ -27,6 +27,8 @@ class PixelEngine:
         self.grille_to_update = np.zeros((N,N), dtype=bool)
         self.grille_changed = np.zeros((N,N),dtype=bool)
 
+        self.changements = []
+
         # update_grille
         for i in range(N):
             for j in range(N):
@@ -66,6 +68,7 @@ class PixelEngine:
             else :
                 new_to_update.append((i,j))
         self.to_update = new_to_update
+        self.changements = changements
 
         #rest pixels changed
         for i,j in reset_grille_changed:
@@ -104,14 +107,23 @@ class Fenetre(Canvas):
         Canvas.__init__(self, monde, taillex, tailley)
         self.create_pixel = False
         self.pixel_id = 0
+        self.graphic_changes = True
 
     def afficher(self):
-        # background
-        self.canvas.fill((200, 200, 200))
-
         #pixels
-        for i in range(self.monde.N):
-            for j in range(self.monde.N):
+        # for i in range(self.monde.N):
+        #     for j in range(self.monde.N):
+        #         if self.monde.grille[i,j] != -1:
+        #             pixel_id = self.monde.grille[i,j]
+        #             color = self.monde.pixels[pixel_id].color
+        #
+        #             x,y = self.monde.grille_to_coord(i,j)
+        #             px,py = self.pixel(x,y)
+        #             w,h = self.echelle*1, self.echelle*1
+        #             pygame.draw.rect(self.canvas,color,(px,py,w+1,h+1))
+
+        if not(self.graphic_changes):
+            for (i,j,value) in self.monde.changements:
                 if self.monde.grille[i,j] != -1:
                     pixel_id = self.monde.grille[i,j]
                     color = self.monde.pixels[pixel_id].color
@@ -125,6 +137,27 @@ class Fenetre(Canvas):
                     px,py = self.pixel(x,y)
                     w,h = self.echelle*1, self.echelle*1
                     pygame.draw.rect(self.canvas,(0,0,0),(px,py,w+1,h+1))
+        else:
+            # background
+            self.canvas.fill((200, 200, 200))
+
+            # pixel zone
+            px, py = self.pixel(-self.monde.N // 2, self.monde.N // 2)
+            w, h = self.echelle * self.monde.N, self.echelle * self.monde.N
+            pygame.draw.rect(self.canvas, (0, 0, 0), (px, py, w, h))
+
+            for i in range(self.monde.N):
+                for j in range(self.monde.N):
+                    if self.monde.grille[i,j] != -1:
+                        pixel_id = self.monde.grille[i,j]
+                        color = self.monde.pixels[pixel_id].color
+
+                        x,y = self.monde.grille_to_coord(i,j)
+                        px,py = self.pixel(x,y)
+                        w,h = self.echelle*1, self.echelle*1
+                        pygame.draw.rect(self.canvas,color,(px,py,w+1,h+1))
+            self.graphic_changes = False
+
         # update zone
         # for (i,j) in self.monde.to_update:
         #     x, y = self.monde.grille_to_coord(i, j)
@@ -150,9 +183,11 @@ class Fenetre(Canvas):
 
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 4: #mousewheel up
             self.echelle *= 1.5
+            self.graphic_changes = True
 
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 5: #mousewheel down
             self.echelle /= 1.5
+            self.graphic_changes = True
 
         elif event.type == pygame.MOUSEBUTTONDOWN:
             print(event.button)
@@ -161,6 +196,8 @@ class Fenetre(Canvas):
             (x,y)=pygame.mouse.get_pos()
             self.X = self.Xram+self.sensibilite*(self.Xmouse-x)/self.echelle
             self.Y = self.Yram+self.sensibilite*(y-self.Ymouse)/self.echelle
+
+            self.graphic_changes = True
 
         elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:#left button
             self.translate = False
@@ -244,7 +281,7 @@ eau = Pixel((0,0,180),action_eau)
 pierre = Pixel((150,150,150),action_pierre)
 
 pixels = [sable,eau,pierre]
-N = 100
+N = 500
 pixelEngine = PixelEngine(N,pixels) #PixelEngine.load("pixelEngine.obj")#
 
 fenetre = Fenetre(pixelEngine, 1200, 800)
