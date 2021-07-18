@@ -94,6 +94,10 @@ class PixelEngine:
             self.to_update.append((i,j))
             self.grille_to_update[i,j]=True
 
+    def add_changement(self,i,j,value):
+        if i>0 and i<self.N-1 and j>0 and j <self.N-1:
+            self.changements.append((i,j,value))
+
     def save(self,name_file):
         file = open(name_file,'wb',pickle.HIGHEST_PROTOCOL)
         pickle.dump(self,file)
@@ -224,7 +228,7 @@ class Fenetre(Canvas):
 
             x, y = self.coord(px, py)
             i, j = self.monde.coord_to_grille(x, y)
-            self.monde.changements.append((i,j,self.pixel_id))
+            self.monde.add_changement(i,j,self.pixel_id)
 
         #TODO: Mettre les evenements que l'on veut
 
@@ -311,12 +315,38 @@ def action_gaz(coord,grille,dt):
 def action_pierre(coord,grille,dt):
     return []
 
+def action_bois(coord,grille,dt):
+    changements = []
+    i,j = coord
+    if j>1:
+        if grille[i,j-1]==-1:
+            changements.append((i,j,-1))
+            changements.append((i,j-1,4))
+        elif grille[i,j-1] == 1 and grille[i,j+1] == -1:
+            changements.append((i,j+1,4))
+            changements.append((i,j-1,-1))
+        elif grille[i-1,j] == 1 and grille[i,j+1] == -1:
+            changements.append((i,j+1,4))
+            changements.append((i-1,j,-1))
+        elif grille[i+1,j] == 1 and grille[i,j+1] == -1:
+            changements.append((i,j+1,4))
+            changements.append((i+1,j,-1))
+        elif grille[i-1,j-1] == 1 and grille[i,j+1] == -1:
+            changements.append((i,j+1,4))
+            changements.append((i-1,j-1,-1))
+        elif grille[i+1,j-1] == 1 and grille[i,j+1] == -1:
+            changements.append((i,j+1,4))
+            changements.append((i+1,j-1,-1))
+    return changements
+
+
 sable = Pixel((200,150,0),action_sable)
 eau = Pixel((0,0,180),action_eau)
 pierre = Pixel((150,150,150),action_pierre)
 gaz = Pixel((0,180,0),action_gaz)
+bois = Pixel((100,50,80),action_bois)
 
-pixels = [sable,eau,pierre,gaz]
+pixels = [sable,eau,pierre,gaz,bois]
 N = 100
 pixelEngine = PixelEngine(N,pixels) #PixelEngine.load("pixelEngine.obj")#
 
