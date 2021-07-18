@@ -17,11 +17,12 @@ class Pixel:
         self.action = action #fonction action((i,j),grille,new_grille,dt) qui modifie la grille
 
 class PixelEngine:
-    def __init__(self,N,pixels):
+    def __init__(self,N,pixels,tps):
         self.N = N #taille_grille
         self.pixels = pixels
         self.grille = np.zeros((N,N),dtype=np.int16)
-        self.t = time.time()
+        self.t = time.time() #time of the previous tic
+        self.tps = tps #tic par seconde
 
         self.to_update = []
         self.grille_to_update = np.zeros((N,N), dtype=bool)
@@ -43,50 +44,52 @@ class PixelEngine:
     def evolve(self):
         changements = []
         dt = (time.time()-self.t)
+        if dt>1/self.tps:
+            self.t = time.time()
 
-        #calculs changements
-        new_to_update = []
+            #calculs changements
+            new_to_update = []
 
-        reset_grille_changed = []
+            reset_grille_changed = []
 
-        for i,j in self.to_update:
-            pixel_id = self.grille[i,j]
-            if pixel_id == -1:
-                changes = []
-            else:
-                changes = self.pixels[pixel_id].action((i,j),self.grille,dt)
-
-            apply_changes = True
-            for change in changes:
-                if self.grille_changed[change[0],change[1]] == False:
-                    self.grille_changed[change[0],change[1]] = True
-                    reset_grille_changed.append((change[0],change[1]))
+            for i,j in self.to_update:
+                pixel_id = self.grille[i,j]
+                if pixel_id == -1:
+                    changes = []
                 else:
-                    apply_changes = False
-                    break
+                    changes = self.pixels[pixel_id].action((i,j),self.grille)
 
-            if apply_changes:
-                self.changements+= changes
-                self.grille_to_update[i,j] = False
-            else :
-                new_to_update.append((i,j))
-        self.to_update = new_to_update
+                apply_changes = True
+                for change in changes:
+                    if self.grille_changed[change[0],change[1]] == False:
+                        self.grille_changed[change[0],change[1]] = True
+                        reset_grille_changed.append((change[0],change[1]))
+                    else:
+                        apply_changes = False
+                        break
 
-        #rest pixels changed
-        for i,j in reset_grille_changed:
-            self.grille_changed[i, j] = False
+                if apply_changes:
+                    self.changements+= changes
+                    self.grille_to_update[i,j] = False
+                else :
+                    new_to_update.append((i,j))
+            self.to_update = new_to_update
 
-        #update grille
-        for k in range(len(self.changements)) :
-            (i, j, value) = self.changements.pop()
-            changements.append((i, j, value))
-            if i>0 and i<self.N-1 and j>0 and j <self.N-1:
-                self.grille[i, j] = value
+            #rest pixels changed
+            for i,j in reset_grille_changed:
+                self.grille_changed[i, j] = False
 
-            for ex in [-1,0,1]:
-                for ey in [-1,0,1]:
-                    self.add_pixel_to_update(i+ex,j+ey)
-        self.t +=dt
+            #update grille
+            for k in range(len(self.changements)) :
+                (i, j, value) = self.changements.pop()
+                changements.append((i, j, value))
+                if i>0 and i<self.N-1 and j>0 and j <self.N-1:
+                    self.grille[i, j] = value
+
+                for ex in [-1,0,1]:
+                    for ey in [-1,0,1]:
+                        self.add_pixel_to_update(i+ex,j+ey)
+
         return changements
 
     def add_pixel_to_update(self,i,j):
@@ -118,6 +121,7 @@ class Fenetre(Canvas):
         self.pixel_id = 0
         self.graphic_changes = True
         self.changements = []
+        self.t = time.time()
 
     def afficher(self):
         #pixels
@@ -167,6 +171,11 @@ class Fenetre(Canvas):
                         w,h = self.echelle*1, self.echelle*1
                         pygame.draw.rect(self.canvas,color,(px,py,w+1,h+1))
             self.graphic_changes = False
+
+        if self.t<time.time():
+            fps = 1/(time.time()-self.t)
+            self.t = time.time()
+            print(str(fps)+" fps")
 
         # update zone
         # for (i,j) in self.monde.to_update:
@@ -235,7 +244,7 @@ class Fenetre(Canvas):
 
 ## main
 
-def action_sable(coord,grille,dt):
+def action_sable(coord,grille):
     changements = []
     i,j = coord
     if j>1:
@@ -259,7 +268,7 @@ def action_sable(coord,grille,dt):
             changements.append((i+1,j-1,0))
     return changements
 
-def action_eau(coord,grille,dt):
+def action_eau(coord,grille):
     changements = []
     i,j = coord
     e = 2*random.randint(0,1)-1
@@ -281,7 +290,7 @@ def action_eau(coord,grille,dt):
             changements.append((i-e,j,1))
     return changements
 
-def action_gaz(coord,grille,dt):
+def action_gaz(coord,grille):
     changements = []
     i,j = coord
     e = 2*random.randint(0,1)-1
@@ -312,10 +321,10 @@ def action_gaz(coord,grille,dt):
             changements.append((i-e,j,3))
     return changements
 
-def action_pierre(coord,grille,dt):
+def action_pierre(coord,grille):
     return []
 
-def action_bois(coord,grille,dt):
+def action_bois(coord,grille):
     changements = []
     i,j = coord
     if j>1:
@@ -347,8 +356,8 @@ gaz = Pixel((0,180,0),action_gaz)
 bois = Pixel((100,50,80),action_bois)
 
 pixels = [sable,eau,pierre,gaz,bois]
-N = 100
-pixelEngine = PixelEngine(N,pixels) #PixelEngine.load("pixelEngine.obj")#
+N = 100; tps = 60
+pixelEngine = PixelEngine(N,pixels,tps) #PixelEngine.load("pixelEngine.obj")#
 
 fenetre = Fenetre(pixelEngine, 1200, 800)
 fenetre.run()
