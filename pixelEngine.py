@@ -122,6 +122,7 @@ class Fenetre(Canvas):
         self.graphic_changes = True
         self.changements = []
         self.t = time.time()
+        self.play = True
 
     def afficher(self):
         #pixels
@@ -173,9 +174,18 @@ class Fenetre(Canvas):
             self.graphic_changes = False
 
         if self.t<time.time():
-            fps = 1/(time.time()-self.t)
+            fps = int(1/(time.time()-self.t))
             self.t = time.time()
-            print(str(fps)+" fps")
+
+            #display fps
+            display_width = 100; display_height = 20
+            pygame.draw.rect(self.canvas,(255,255,255),(0,0,display_width,display_height))
+            text = str(fps)+" fps"
+            largeText = pygame.font.Font('freesansbold.ttf', 20)
+            textSurface = largeText.render(text, True, (0,0,0))
+            rect = textSurface.get_rect()
+            rect.center = ((display_width / 2), (display_height / 2))
+            self.canvas.blit(textSurface, rect)
 
         # update zone
         # for (i,j) in self.monde.to_update:
@@ -185,7 +195,10 @@ class Fenetre(Canvas):
         #     pygame.draw.rect(self.canvas, (0, 255, 0), (px, py, w + 1, h + 1))
 
     def action(self):
-        self.changements = self.monde.evolve()
+        if self.play:
+            self.changements = self.monde.evolve()
+        else:
+            self.changements = []
 
     def handleEvent(self,event):
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 3:#right button
@@ -229,6 +242,8 @@ class Fenetre(Canvas):
                 self.pixel_id += 1
                 if self.pixel_id >= len(self.monde.pixels):
                     self.pixel_id = 0
+            elif event.key == 13: #entree
+                self.play = not(self.play)
             else:
                 print(event.key)
 
@@ -322,7 +337,41 @@ def action_gaz(coord,grille):
     return changements
 
 def action_pierre(coord,grille):
-    return []
+    seuil = 50
+    changements = []
+    i,j = coord
+
+    #calcul pixels attachés
+    pierre = [(i,j)]
+    check = [ (i-1,j-1),(i-1,j),(i-1,j+1),(i,j-1),(i,j+1),(i+1,j-1),(i+1,j),(i+1,j+1) ]
+
+    for x,y in check:
+        if grille[x,y] == 2 and not (x,y) in pierre:
+            pierre.append((x,y))
+            check += [ (x-1,y-1),(x-1,y),(x-1,y+1),(x,y-1),(x,y+1),(x+1,y-1),(x+1,y),(x+1,y+1) ]
+        if len(pierre)>seuil:
+            return []
+
+    # centre de gravité
+    G = [0,0]
+    for x,y in pierre:
+        G[0]+=x; G[1]+=y
+    G[0] /= len(pierre); G[1] /= len(pierre)
+
+    #can fall
+    fall = True
+    for x,y in pierre:
+        if grille[x,y-1] != -1 and grille[x,y-1] != 2:
+            fall = False
+
+    if fall:
+        for x,y in pierre:
+            if grille[x,y+1] != 2 and grille[x,y-1] == 2:
+                changements.append((x,y,-1))
+            if grille[x,y-1] == -1:
+                changements.append((x,y-1,2))
+
+    return changements
 
 def action_bois(coord,grille):
     changements = []
@@ -362,7 +411,6 @@ pixelEngine = PixelEngine(N,pixels,tps) #PixelEngine.load("pixelEngine.obj")#
 fenetre = Fenetre(pixelEngine, 1200, 800)
 fenetre.run()
 pixelEngine.save("pixelEngine.obj")
-print(pixelEngine.grille)
 
 
 
