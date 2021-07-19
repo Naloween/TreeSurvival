@@ -383,21 +383,20 @@ def action_bois(coord,grille):
         if grille[i,j-1]==-1:
             changements.append((i,j,-1))
             changements.append((i,j-1,4))
-        elif grille[i,j-1] == 1 and grille[i,j+1] == -1:
-            changements.append((i,j+1,4))
-            changements.append((i,j-1,-1))
-        elif grille[i-1,j] == 1 and grille[i,j+1] == -1:
-            changements.append((i,j+1,4))
-            changements.append((i-1,j,-1))
-        elif grille[i+1,j] == 1 and grille[i,j+1] == -1:
-            changements.append((i,j+1,4))
-            changements.append((i+1,j,-1))
-        elif grille[i-1,j-1] == 1 and grille[i,j+1] == -1:
-            changements.append((i,j+1,4))
-            changements.append((i-1,j-1,-1))
-        elif grille[i+1,j-1] == 1 and grille[i,j+1] == -1:
-            changements.append((i,j+1,4))
-            changements.append((i+1,j-1,-1))
+        iswater = False
+        for e1 in [-1,0,1]:
+            for e2 in [-1,0,1]:
+                if grille[i+e1,j+e2] == 1:
+                    iswater = True
+                    changements.append((i+e1,j+e2,-1))
+
+        if iswater:
+            j_add = j+1
+            while grille[i,j_add] == 4:
+                j_add += 1
+            if grille[i,j_add] == -1:
+                changements.append((i,j_add,4))
+
     return changements
 
 def action_electricity(coord,grille):
@@ -452,7 +451,7 @@ sable = Pixel((200,150,0),action_sable)
 eau = Pixel((0,0,180),action_eau)
 pierre = Pixel((150,150,150),action_pierre)
 gaz = Pixel((0,180,0),action_gaz)
-bois = Pixel((100,50,80),action_bois)
+bois = Pixel((125, 83, 41),action_bois)
 electricity= Pixel((255, 255, 0),action_electricity)
 wire= Pixel((207, 70, 70),action_wire)
 electrified_wire= Pixel((235, 193, 59),action_electrified_wire)
