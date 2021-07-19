@@ -414,11 +414,20 @@ def action_wire(coord, grille):
     changements = []
     i, j = coord
 
+    exit = False
     for e1 in [-1,0,1]:
         for e2 in [-1,0,1]:
             if grille[i+e1,j+e2] == 5:
                 changements.append((i+e1,j+e2,-1))
                 changements.append((i, j, 7))
+                exit = True
+                break
+            elif grille[i+e1,j+e2] == 7:
+                changements.append((i, j, 7))
+                exit = True
+                break
+        if exit:
+            break
 
     return changements
 
@@ -427,15 +436,6 @@ def action_electrified_wire(coord, grille):
     i, j = coord
 
     changements.append((i, j, 8))
-    exit = False
-    for e1 in [-1, 0, 1]:
-        for e2 in [-1, 0, 1]:
-            if grille[i + e1, j + e2] == 6:
-                changements.append((i + e1, j + e2, 7))
-                exit = True
-                break
-        if exit:
-            break
 
     return changements
 
