@@ -187,6 +187,9 @@ class Fenetre(Canvas):
             rect.center = ((display_width / 2), (display_height / 2))
             self.canvas.blit(textSurface, rect)
 
+            #display pixel to draw
+            pygame.draw.rect(self.canvas,self.monde.pixels[self.pixel_id].color,(0,self.tailley-100,100,100))
+
         # update zone
         # for (i,j) in self.monde.to_update:
         #     x, y = self.monde.grille_to_coord(i, j)
@@ -397,14 +400,65 @@ def action_bois(coord,grille):
             changements.append((i+1,j-1,-1))
     return changements
 
+def action_electricity(coord,grille):
+    changements = []
+    e1 = random.randint(-1,1); e2 = random.randint(-1,1)
+    i,j = coord
+
+    changements.append((i,j,-1))
+    if grille[i+e1,j+e2] == -1:
+        changements.append((i+e1, j+e2, 5))
+
+    return changements
+
+def action_wire(coord, grille):
+    changements = []
+    i, j = coord
+
+    for e1 in [-1,0,1]:
+        for e2 in [-1,0,1]:
+            if grille[i+e1,j+e2] == 5:
+                changements.append((i+e1,j+e2,-1))
+                changements.append((i, j, 7))
+
+    return changements
+
+def action_electrified_wire(coord, grille):
+    changements = []
+    i, j = coord
+
+    changements.append((i, j, 8))
+    exit = False
+    for e1 in [-1, 0, 1]:
+        for e2 in [-1, 0, 1]:
+            if grille[i + e1, j + e2] == 6:
+                changements.append((i + e1, j + e2, 7))
+                exit = True
+                break
+        if exit:
+            break
+
+    return changements
+
+def action_used_wire(coord, grille):
+    changements = []
+    i, j = coord
+
+    changements.append((i,j,6))
+
+    return changements
 
 sable = Pixel((200,150,0),action_sable)
 eau = Pixel((0,0,180),action_eau)
 pierre = Pixel((150,150,150),action_pierre)
 gaz = Pixel((0,180,0),action_gaz)
 bois = Pixel((100,50,80),action_bois)
+electricity= Pixel((255, 255, 0),action_electricity)
+wire= Pixel((207, 70, 70),action_wire)
+electrified_wire= Pixel((235, 193, 59),action_electrified_wire)
+used_wire= Pixel((105, 35, 35),action_used_wire)
 
-pixels = [sable,eau,pierre,gaz,bois]
+pixels = [sable,eau,pierre,gaz,bois,electricity,wire,electrified_wire,used_wire]
 N = 100; tps = 60
 pixelEngine = PixelEngine(N,pixels,tps) #PixelEngine.load("pixelEngine.obj")#
 
