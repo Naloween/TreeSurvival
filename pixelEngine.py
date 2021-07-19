@@ -28,7 +28,9 @@ class PixelEngine:
         self.grille_to_update = np.zeros((N,N), dtype=bool)
         self.grille_changed = np.zeros((N,N),dtype=bool)
 
-        self.changements = []
+        self.maxTimer = 500
+        self.start_index = 0
+        self.changements = [ [] for k in range(self.maxTimer) ]
 
         # update_grille
         for i in range(N):
@@ -36,7 +38,15 @@ class PixelEngine:
                 self.grille[i,j]=-1
 
     def coord_to_grille(self,x,y):
-        return self.N//2+int(x)-1,self.N//2+int(y)
+        if x<0:
+            i = self.N//2+int(x)-1
+        else:
+            i = self.N//2+int(x)
+        if y>0:
+            j = self.N // 2 + int(y)+1
+        else:
+            j =self.N//2+int(y)
+        return i,j
 
     def grille_to_coord(self,i,j):
         return i-self.N//2,j-self.N//2
@@ -69,7 +79,9 @@ class PixelEngine:
                         break
 
                 if apply_changes:
-                    self.changements+= changes
+                    for change in changes:
+                        index = (change[3]+self.start_index)%self.maxTimer
+                        self.changements[index].append(change)
                     self.grille_to_update[i,j] = False
                 else :
                     new_to_update.append((i,j))
@@ -80,8 +92,8 @@ class PixelEngine:
                 self.grille_changed[i, j] = False
 
             #update grille
-            for k in range(len(self.changements)) :
-                (i, j, value) = self.changements.pop()
+            for k in range(len(self.changements[self.start_index])) :
+                (i, j, value, tic) = self.changements[self.start_index].pop()
                 changements.append((i, j, value))
                 if i>0 and i<self.N-1 and j>0 and j <self.N-1:
                     self.grille[i, j] = value
@@ -90,6 +102,8 @@ class PixelEngine:
                     for ey in [-1,0,1]:
                         self.add_pixel_to_update(i+ex,j+ey)
 
+            self.start_index = (self.start_index + 1) % self.maxTimer
+
         return changements
 
     def add_pixel_to_update(self,i,j):
@@ -97,9 +111,10 @@ class PixelEngine:
             self.to_update.append((i,j))
             self.grille_to_update[i,j]=True
 
-    def add_changement(self,i,j,value):
+    def add_changement(self,i,j,value,tic):
         if i>0 and i<self.N-1 and j>0 and j <self.N-1:
-            self.changements.append((i,j,value))
+            index = (self.start_index+tic)%self.maxTimer
+            self.changements[index].append((i,j,value,tic))
 
     def save(self,name_file):
         file = open(name_file,'wb',pickle.HIGHEST_PROTOCOL)
@@ -255,7 +270,7 @@ class Fenetre(Canvas):
 
             x, y = self.coord(px, py)
             i, j = self.monde.coord_to_grille(x, y)
-            self.monde.add_changement(i,j,self.pixel_id)
+            self.monde.add_changement(i,j,self.pixel_id,0)
 
         #TODO: Mettre les evenements que l'on veut
 
@@ -267,23 +282,23 @@ def action_sable(coord,grille):
     i,j = coord
     if j>1:
         if grille[i,j-1]==-1:
-            changements.append((i,j,-1))
-            changements.append((i,j-1,0))
+            changements.append((i,j,-1,0))
+            changements.append((i,j-1,0,0))
         elif grille[i,j-1] == 1:
-            changements.append((i,j,1))
-            changements.append((i,j-1,0))
+            changements.append((i,j,1,0))
+            changements.append((i,j-1,0,0))
         elif grille[i-1,j-1] == -1:
-            changements.append((i,j,-1))
-            changements.append((i-1,j-1,0))
+            changements.append((i,j,-1,0))
+            changements.append((i-1,j-1,0,0))
         elif grille[i-1,j-1] == 1:
-            changements.append((i,j,1))
-            changements.append((i-1,j-1,0))
+            changements.append((i,j,1,0))
+            changements.append((i-1,j-1,0,0))
         elif grille[i+1,j-1] == -1:
-            changements.append((i,j,-1))
-            changements.append((i+1,j-1,0))
+            changements.append((i,j,-1,0))
+            changements.append((i+1,j-1,0,0))
         elif grille[i+1,j-1] == 1:
-            changements.append((i,j,1))
-            changements.append((i+1,j-1,0))
+            changements.append((i,j,1,0))
+            changements.append((i+1,j-1,0,0))
     return changements
 
 def action_eau(coord,grille):
@@ -292,20 +307,20 @@ def action_eau(coord,grille):
     e = 2*random.randint(0,1)-1
     if j>1:
         if grille[i,j-1]==-1:
-            changements.append((i,j,-1))
-            changements.append((i,j-1,1))
+            changements.append((i,j,-1,0))
+            changements.append((i,j-1,1,0))
         elif grille[i-1,j-1] == -1:
-            changements.append((i,j,-1))
-            changements.append((i-1,j-1,1))
+            changements.append((i,j,-1,0))
+            changements.append((i-1,j-1,1,0))
         elif grille[i+1,j-1] == -1:
-            changements.append((i,j,-1))
-            changements.append((i+1,j-1,1))
+            changements.append((i,j,-1,0))
+            changements.append((i+1,j-1,1,0))
         elif grille[i+e,j] == -1:
-            changements.append((i,j,-1))
-            changements.append((i+e,j,1))
+            changements.append((i,j,-1,0))
+            changements.append((i+e,j,1,0))
         elif grille[i-e,j] == -1:
-            changements.append((i,j,-1))
-            changements.append((i-e,j,1))
+            changements.append((i,j,-1,0))
+            changements.append((i-e,j,1,0))
     return changements
 
 def action_gaz(coord,grille):
@@ -314,29 +329,29 @@ def action_gaz(coord,grille):
     e = 2*random.randint(0,1)-1
     if j>1:
         if grille[i,j+1]==-1:
-            changements.append((i,j,-1))
-            changements.append((i,j+1,3))
+            changements.append((i,j,-1,0))
+            changements.append((i,j+1,3,0))
         elif grille[i-1,j+1] == -1:
-            changements.append((i,j,-1))
-            changements.append((i-1,j+1,3))
+            changements.append((i,j,-1,0))
+            changements.append((i-1,j+1,3,0))
         elif grille[i+1,j+1] == -1:
-            changements.append((i,j,-1))
-            changements.append((i+1,j+1,3))
+            changements.append((i,j,-1,0))
+            changements.append((i+1,j+1,3,0))
         elif grille[i,j+1]==1:
-            changements.append((i,j,1))
-            changements.append((i,j+1,3))
+            changements.append((i,j,1,0))
+            changements.append((i,j+1,3,0))
         elif grille[i-1,j+1] == 1:
-            changements.append((i,j,1))
-            changements.append((i-1,j+1,3))
+            changements.append((i,j,1,0))
+            changements.append((i-1,j+1,3,0))
         elif grille[i+1,j+1] == 1:
-            changements.append((i,j,1))
-            changements.append((i+1,j+1,3))
+            changements.append((i,j,1,0))
+            changements.append((i+1,j+1,3,0))
         elif grille[i+e,j] == -1:
-            changements.append((i,j,-1))
-            changements.append((i+e,j,3))
+            changements.append((i,j,-1,0))
+            changements.append((i+e,j,3,0))
         elif grille[i-e,j] == -1:
-            changements.append((i,j,-1))
-            changements.append((i-e,j,3))
+            changements.append((i,j,-1,0))
+            changements.append((i-e,j,3,0))
     return changements
 
 def action_pierre(coord,grille):
@@ -370,9 +385,9 @@ def action_pierre(coord,grille):
     if fall:
         for x,y in pierre:
             if grille[x,y+1] != 2 and grille[x,y-1] == 2:
-                changements.append((x,y,-1))
+                changements.append((x,y,-1,0))
             if grille[x,y-1] == -1:
-                changements.append((x,y-1,2))
+                changements.append((x,y-1,2,0))
 
     return changements
 
@@ -381,21 +396,21 @@ def action_bois(coord,grille):
     i,j = coord
     if j>1:
         if grille[i,j-1]==-1:
-            changements.append((i,j,-1))
-            changements.append((i,j-1,4))
+            changements.append((i,j,-1,0))
+            changements.append((i,j-1,4,0))
         iswater = False
         for e1 in [-1,0,1]:
             for e2 in [-1,0,1]:
                 if grille[i+e1,j+e2] == 1:
                     iswater = True
-                    changements.append((i+e1,j+e2,-1))
+                    changements.append((i+e1,j+e2,-1,0))
 
         if iswater:
             j_add = j+1
             while grille[i,j_add] == 4:
                 j_add += 1
             if grille[i,j_add] == -1:
-                changements.append((i,j_add,4))
+                changements.append((i,j_add,4,100))
 
     return changements
 
@@ -404,9 +419,9 @@ def action_electricity(coord,grille):
     e1 = random.randint(-1,1); e2 = random.randint(-1,1)
     i,j = coord
 
-    changements.append((i,j,-1))
+    changements.append((i,j,-1,0))
     if grille[i+e1,j+e2] == -1:
-        changements.append((i+e1, j+e2, 5))
+        changements.append((i+e1, j+e2, 5,0))
 
     return changements
 
@@ -418,12 +433,12 @@ def action_wire(coord, grille):
     for e1 in [-1,0,1]:
         for e2 in [-1,0,1]:
             if grille[i+e1,j+e2] == 5:
-                changements.append((i+e1,j+e2,-1))
-                changements.append((i, j, 7))
+                changements.append((i+e1,j+e2,-1,0))
+                changements.append((i, j, 7,0))
                 exit = True
                 break
             elif grille[i+e1,j+e2] == 7:
-                changements.append((i, j, 7))
+                changements.append((i, j, 7,0))
                 exit = True
                 break
         if exit:
@@ -435,7 +450,7 @@ def action_electrified_wire(coord, grille):
     changements = []
     i, j = coord
 
-    changements.append((i, j, 8))
+    changements.append((i, j, 8,0))
 
     return changements
 
@@ -443,7 +458,7 @@ def action_used_wire(coord, grille):
     changements = []
     i, j = coord
 
-    changements.append((i,j,6))
+    changements.append((i,j,6,0))
 
     return changements
 
