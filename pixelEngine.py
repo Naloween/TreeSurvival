@@ -14,7 +14,13 @@ import math
 class Pixel:
     def __init__(self,color,action):
         self.color = color
-        self.action = action #fonction action((i,j),grille,new_grille,dt) qui modifie la grille
+        self.action = action #fonction action((i,j),grille) qui modifie la grille
+
+class GroupePixel:
+    def __init__(self,pixels_coord,update,id):
+        self.pixels_coord = pixels_coord
+        self.update = update #fonction update((i,j),grille) -> return changements
+        self.id = id
 
 class PixelEngine:
     def __init__(self,N,pixels,tps):
@@ -24,6 +30,9 @@ class PixelEngine:
         self.t = time.time() #time of the previous tic
         self.tps = tps #tic par seconde
 
+        self.groupes = []
+        self.grille_groupe = np.zeros((N,N),dtype=np.int16)
+
         self.to_update = []
         self.grille_to_update = np.zeros((N,N), dtype=bool)
         self.grille_changed = np.zeros((N,N),dtype=bool)
@@ -32,10 +41,11 @@ class PixelEngine:
         self.start_index = 0
         self.changements = [ [] for k in range(self.maxTimer) ]
 
-        # update_grille
+        # init grilles
         for i in range(N):
             for j in range(N):
                 self.grille[i,j]=-1
+                self.grille_groupe[i,j] = -1
 
     def coord_to_grille(self,x,y):
         if x<0:
@@ -66,8 +76,10 @@ class PixelEngine:
                 pixel_id = self.grille[i,j]
                 if pixel_id == -1:
                     changes = []
-                else:
+                elif self.grille_groupe[i,j] == -1:
                     changes = self.pixels[pixel_id].action((i,j),self.grille)
+                else:
+                    changes = self.groupes[self.grille_groupe[i,j]].update((i,j),self.grille)
 
                 apply_changes = True
                 for change in changes:
