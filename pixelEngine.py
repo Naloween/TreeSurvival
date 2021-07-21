@@ -8,44 +8,45 @@ import random
 import time
 import math
 
-
 ## Class Principale
 
 class Pixel:
-    def __init__(self,color,action):
+    def __init__(self,color):
         self.color = color
-        self.action = action #fonction action((i,j),grille) qui modifie la grille
+
+    def update(self, coord, grille):
+        changements = []
+        return changements
 
 class GroupePixel:
-    def __init__(self,pixels_coord,update,id):
+    def __init__(self,pixels_coord):
         self.pixels_coord = pixels_coord
-        self.update = update #fonction update((i,j),grille) -> return changements
-        self.id = id
+
+    def update(self,coord,grille):
+        changements = []
+        return changements
 
 class PixelEngine:
-    def __init__(self,N,pixels,tps):
+    def __init__(self,N,tps):
         self.N = N #taille_grille
-        self.pixels = pixels
-        self.grille = np.zeros((N,N),dtype=np.int16)
+        self.grille_pixels = np.zeros((N,N),dtype=object)
+        self.grille_groupes = np.zeros((N, N), dtype=object)
         self.t = time.time() #time of the previous tic
         self.tps = tps #tic par seconde
 
-        self.groupes = []
-        self.grille_groupe = np.zeros((N,N),dtype=np.int16)
-
         self.to_update = []
-        self.grille_to_update = np.zeros((N,N), dtype=bool)
-        self.grille_changed = np.zeros((N,N),dtype=bool)
+        self.grille_to_update = np.zeros((N,N), dtype=bool) #enegistre les pixels déjà dans le to_update
+        self.grille_changed = np.zeros((N,N),dtype=bool) #enregistre les pixels qui ont déjà étés changés au cours du tic
 
         self.maxTimer = 500
         self.start_index = 0
         self.changements = [ [] for k in range(self.maxTimer) ]
 
-        # init grilles
-        for i in range(N):
-            for j in range(N):
-                self.grille[i,j]=-1
-                self.grille_groupe[i,j] = -1
+        #init grille
+        for i in range(self.N):
+            for j in range(self.N):
+                self.grille_pixels[i,j] = None
+                self.grille_groupes[i, j] = None
 
     def coord_to_grille(self,x,y):
         if x<0:
@@ -73,14 +74,15 @@ class PixelEngine:
             reset_grille_changed = []
 
             for i,j in self.to_update:
-                pixel_id = self.grille[i,j]
-                if pixel_id == -1:
+                pixel = self.grille_pixels[i,j]
+                if pixel == None:
                     changes = []
-                elif self.grille_groupe[i,j] == -1:
-                    changes = self.pixels[pixel_id].action((i,j),self.grille)
+                elif self.grille_groupes[i,j] == None:
+                    changes = pixel.update((i,j),self.grille_pixels)
                 else:
-                    changes = self.groupes[self.grille_groupe[i,j]].update((i,j),self.grille)
+                    changes = self.grille_groupes[i,j].update((i,j),self.grille_pixels)
 
+                # évite les conflits
                 apply_changes = True
                 for change in changes:
                     if self.grille_changed[change[0],change[1]] == False:
@@ -90,6 +92,7 @@ class PixelEngine:
                         apply_changes = False
                         break
 
+                #enregistre les changements à appliquer
                 if apply_changes:
                     for change in changes:
                         index = (change[3]+self.start_index)%self.maxTimer
@@ -108,7 +111,7 @@ class PixelEngine:
                 (i, j, value, tic) = self.changements[self.start_index].pop()
                 changements.append((i, j, value))
                 if i>0 and i<self.N-1 and j>0 and j <self.N-1:
-                    self.grille[i, j] = value
+                    self.grille_pixels[i, j] = value
 
                 for ex in [-1,0,1]:
                     for ey in [-1,0,1]:
@@ -119,7 +122,7 @@ class PixelEngine:
         return changements
 
     def add_pixel_to_update(self,i,j):
-        if i>0 and i<self.N-1 and j>0 and j <self.N-1 and not(self.grille_to_update[i,j]) and self.grille[i,j] != -1:
+        if i>0 and i<self.N-1 and j>0 and j <self.N-1 and not(self.grille_to_update[i,j]) and self.grille_pixels[i,j] != None:
             self.to_update.append((i,j))
             self.grille_to_update[i,j]=True
 
@@ -139,13 +142,13 @@ class PixelEngine:
         file.close()
         return res
 
-##
+## Graphismes
 
 class Fenetre(Canvas):
     def __init__(self, monde, taillex, tailley):
         Canvas.__init__(self, monde, taillex, tailley)
         self.create_pixel = False
-        self.pixel_id = 0
+        self.pixel_id = 0; self.pixel = Sable()
         self.graphic_changes = True
         self.changements = []
         self.t = time.time()
@@ -166,17 +169,17 @@ class Fenetre(Canvas):
 
         if not(self.graphic_changes):
             for (i,j,value) in self.changements:
-                if self.monde.grille[i,j] != -1:
-                    pixel_id = self.monde.grille[i,j]
-                    color = self.monde.pixels[pixel_id].color
+                if self.monde.grille_pixels[i,j] != None:
+                    pixel = self.monde.grille_pixels[i,j]
+                    color = pixel.color
 
                     x,y = self.monde.grille_to_coord(i,j)
-                    px,py = self.pixel(x,y)
+                    px,py = self.coord_to_pixel(x,y)
                     w,h = self.echelle*1, self.echelle*1
                     pygame.draw.rect(self.canvas,color,(px,py,w+1,h+1))
                 else:
                     x,y = self.monde.grille_to_coord(i,j)
-                    px,py = self.pixel(x,y)
+                    px,py = self.coord_to_pixel(x,y)
                     w,h = self.echelle*1, self.echelle*1
                     pygame.draw.rect(self.canvas,(0,0,0),(px,py,w+1,h+1))
         else:
@@ -184,18 +187,18 @@ class Fenetre(Canvas):
             self.canvas.fill((200, 200, 200))
 
             # pixel zone
-            px, py = self.pixel(-self.monde.N // 2, self.monde.N // 2)
+            px, py = self.coord_to_pixel(-self.monde.N // 2, self.monde.N // 2)
             w, h = self.echelle * self.monde.N, self.echelle * self.monde.N
             pygame.draw.rect(self.canvas, (0, 0, 0), (px, py, w, h))
 
             for i in range(self.monde.N):
                 for j in range(self.monde.N):
-                    if self.monde.grille[i,j] != -1:
-                        pixel_id = self.monde.grille[i,j]
-                        color = self.monde.pixels[pixel_id].color
+                    if self.monde.grille_pixels[i,j] != None:
+                        pixel = self.monde.grille_pixels[i,j]
+                        color = pixel.color
 
                         x,y = self.monde.grille_to_coord(i,j)
-                        px,py = self.pixel(x,y)
+                        px,py = self.coord_to_pixel(x,y)
                         w,h = self.echelle*1, self.echelle*1
                         pygame.draw.rect(self.canvas,color,(px,py,w+1,h+1))
             self.graphic_changes = False
@@ -215,7 +218,7 @@ class Fenetre(Canvas):
             self.canvas.blit(textSurface, rect)
 
             #display pixel to draw
-            pygame.draw.rect(self.canvas,self.monde.pixels[self.pixel_id].color,(0,self.tailley-100,100,100))
+            pygame.draw.rect(self.canvas,self.pixel.color,(0,self.tailley-100,100,100))
 
         # update zone
         # for (i,j) in self.monde.to_update:
@@ -270,8 +273,15 @@ class Fenetre(Canvas):
         elif event.type == pygame.KEYDOWN:
             if event.key == 32: #espace
                 self.pixel_id += 1
-                if self.pixel_id >= len(self.monde.pixels):
+                maxTypePixel = 2
+                if self.pixel_id >= maxTypePixel:
                     self.pixel_id = 0
+
+                if self.pixel_id == 0:
+                    self.pixel = Sable()
+                elif self.pixel_id == 1:
+                    self.pixel = Eau()
+                
             elif event.key == 13: #entree
                 self.play = not(self.play)
             else:
@@ -280,225 +290,222 @@ class Fenetre(Canvas):
         if self.create_pixel :
             (px, py) = pygame.mouse.get_pos()
 
-            x, y = self.coord(px, py)
+            x, y = self.pixel_to_coord(px, py)
             i, j = self.monde.coord_to_grille(x, y)
-            self.monde.add_changement(i,j,self.pixel_id,0)
+
+            if self.pixel_id == 0:
+                self.pixel = Sable()
+            elif self.pixel_id == 1:
+                self.pixel = Eau()
+
+            self.monde.add_changement(i,j,self.pixel,0)
 
         #TODO: Mettre les evenements que l'on veut
 
-
 ## main
+class Sable(Pixel):
+    def __init__(self):
+        color = (200,150,0)
+        Pixel.__init__(self,color)
 
-def action_sable(coord,grille):
-    changements = []
-    i,j = coord
-    if j>1:
-        if grille[i,j-1]==-1:
-            changements.append((i,j,-1,0))
-            changements.append((i,j-1,0,0))
-        elif grille[i,j-1] == 1:
-            changements.append((i,j,1,0))
-            changements.append((i,j-1,0,0))
-        elif grille[i-1,j-1] == -1:
-            changements.append((i,j,-1,0))
-            changements.append((i-1,j-1,0,0))
-        elif grille[i-1,j-1] == 1:
-            changements.append((i,j,1,0))
-            changements.append((i-1,j-1,0,0))
-        elif grille[i+1,j-1] == -1:
-            changements.append((i,j,-1,0))
-            changements.append((i+1,j-1,0,0))
-        elif grille[i+1,j-1] == 1:
-            changements.append((i,j,1,0))
-            changements.append((i+1,j-1,0,0))
-    return changements
+    def update(self,coord,grille):
+        changements = []
+        i,j = coord
+        if j>1:
+            if grille[i,j-1]==None or type(grille[i,j-1]) == Eau:
+                changements.append((i,j,grille[i,j-1],0))
+                changements.append((i,j-1,self,0))
+            elif grille[i-1,j-1] == None or type(grille[i-1,j-1]) == Eau:
+                changements.append((i,j,grille[i-1,j-1],0))
+                changements.append((i-1,j-1,self,0))
+            elif grille[i+1,j-1] == None or type(grille[i+1,j-1]) == Eau:
+                changements.append((i,j,grille[i+1,j-1],0))
+                changements.append((i+1,j-1,self,0))
+        return changements
 
-def action_eau(coord,grille):
-    changements = []
-    i,j = coord
-    e = 2*random.randint(0,1)-1
-    if j>1:
-        if grille[i,j-1]==-1:
-            changements.append((i,j,-1,0))
-            changements.append((i,j-1,1,0))
-        elif grille[i-1,j-1] == -1:
-            changements.append((i,j,-1,0))
-            changements.append((i-1,j-1,1,0))
-        elif grille[i+1,j-1] == -1:
-            changements.append((i,j,-1,0))
-            changements.append((i+1,j-1,1,0))
-        elif grille[i+e,j] == -1:
-            changements.append((i,j,-1,0))
-            changements.append((i+e,j,1,0))
-        elif grille[i-e,j] == -1:
-            changements.append((i,j,-1,0))
-            changements.append((i-e,j,1,0))
-    return changements
+class Eau(Pixel):
+    def __init__(self):
+        color = (0,0,180)
+        Pixel.__init__(self,color)
 
-def action_gaz(coord,grille):
-    changements = []
-    i,j = coord
-    e = 2*random.randint(0,1)-1
-    if j>1:
-        if grille[i,j+1]==-1:
-            changements.append((i,j,-1,0))
-            changements.append((i,j+1,3,0))
-        elif grille[i-1,j+1] == -1:
-            changements.append((i,j,-1,0))
-            changements.append((i-1,j+1,3,0))
-        elif grille[i+1,j+1] == -1:
-            changements.append((i,j,-1,0))
-            changements.append((i+1,j+1,3,0))
-        elif grille[i,j+1]==1:
-            changements.append((i,j,1,0))
-            changements.append((i,j+1,3,0))
-        elif grille[i-1,j+1] == 1:
-            changements.append((i,j,1,0))
-            changements.append((i-1,j+1,3,0))
-        elif grille[i+1,j+1] == 1:
-            changements.append((i,j,1,0))
-            changements.append((i+1,j+1,3,0))
-        elif grille[i+e,j] == -1:
-            changements.append((i,j,-1,0))
-            changements.append((i+e,j,3,0))
-        elif grille[i-e,j] == -1:
-            changements.append((i,j,-1,0))
-            changements.append((i-e,j,3,0))
-    return changements
+    def update(self,coord,grille):
+        changements = []
+        i,j = coord
+        e = 2*random.randint(0,1)-1
+        if j>1:
+            if grille[i,j-1]== None:
+                changements.append((i,j,None,0))
+                changements.append((i,j-1,self,0))
+            elif grille[i-1,j-1] == None:
+                changements.append((i,j,None,0))
+                changements.append((i-1,j-1,self,0))
+            elif grille[i+1,j-1] == None:
+                changements.append((i,j,None,0))
+                changements.append((i+1,j-1,self,0))
+            elif grille[i+e,j] == None:
+                changements.append((i,j,None,0))
+                changements.append((i+e,j,self,0))
+            elif grille[i-e,j] == None:
+                changements.append((i,j,None,0))
+                changements.append((i-e,j,self,0))
+        return changements
 
-def action_pierre(coord,grille):
-    seuil = 50
-    changements = []
-    i,j = coord
+class Gaz(Pixel):
+    def __init__(self):
+        color = (0,180,0)
+        Pixel.__init__(color)
 
-    #calcul pixels attachés
-    pierre = [(i,j)]
-    check = [ (i-1,j-1),(i-1,j),(i-1,j+1),(i,j-1),(i,j+1),(i+1,j-1),(i+1,j),(i+1,j+1) ]
+    def update(self,coord,grille):
+        changements = []
+        i,j = coord
+        e = 2*random.randint(0,1)-1
+        if j>1:
+            if grille[i,j+1]==-1:
+                changements.append((i,j,-1,0))
+                changements.append((i,j+1,3,0))
+            elif grille[i-1,j+1] == -1:
+                changements.append((i,j,-1,0))
+                changements.append((i-1,j+1,3,0))
+            elif grille[i+1,j+1] == -1:
+                changements.append((i,j,-1,0))
+                changements.append((i+1,j+1,3,0))
+            elif grille[i,j+1]==1:
+                changements.append((i,j,1,0))
+                changements.append((i,j+1,3,0))
+            elif grille[i-1,j+1] == 1:
+                changements.append((i,j,1,0))
+                changements.append((i-1,j+1,3,0))
+            elif grille[i+1,j+1] == 1:
+                changements.append((i,j,1,0))
+                changements.append((i+1,j+1,3,0))
+            elif grille[i+e,j] == -1:
+                changements.append((i,j,-1,0))
+                changements.append((i+e,j,3,0))
+            elif grille[i-e,j] == -1:
+                changements.append((i,j,-1,0))
+                changements.append((i-e,j,3,0))
+        return changements
 
-    for x,y in check:
-        if grille[x,y] == 2 and not (x,y) in pierre:
-            pierre.append((x,y))
-            check += [ (x-1,y-1),(x-1,y),(x-1,y+1),(x,y-1),(x,y+1),(x+1,y-1),(x+1,y),(x+1,y+1) ]
-        if len(pierre)>seuil:
-            return []
+class Pierre(Pixel):
+    def __init__(self):
+        color = (150,150,150)
+        Pixel.__init__(color)
 
-    # centre de gravité
-    G = [0,0]
-    for x,y in pierre:
-        G[0]+=x; G[1]+=y
-    G[0] /= len(pierre); G[1] /= len(pierre)
+    def update(self,coord,grille):
+        seuil = 50
+        changements = []
+        i,j = coord
 
-    #can fall
-    fall = True
-    for x,y in pierre:
-        if grille[x,y-1] != -1 and grille[x,y-1] != 2:
-            fall = False
+        #calcul pixels attachés
+        pierre = [(i,j)]
+        check = [ (i-1,j-1),(i-1,j),(i-1,j+1),(i,j-1),(i,j+1),(i+1,j-1),(i+1,j),(i+1,j+1) ]
 
-    if fall:
+        for x,y in check:
+            if grille[x,y] == 2 and not (x,y) in pierre:
+                pierre.append((x,y))
+                check += [ (x-1,y-1),(x-1,y),(x-1,y+1),(x,y-1),(x,y+1),(x+1,y-1),(x+1,y),(x+1,y+1) ]
+            if len(pierre)>seuil:
+                return []
+
+        # centre de gravité
+        G = [0,0]
         for x,y in pierre:
-            if grille[x,y+1] != 2 and grille[x,y-1] == 2:
-                changements.append((x,y,-1,0))
-            if grille[x,y-1] == -1:
-                changements.append((x,y-1,2,0))
+            G[0]+=x; G[1]+=y
+        G[0] /= len(pierre); G[1] /= len(pierre)
 
-    return changements
+        #can fall
+        fall = True
+        for x,y in pierre:
+            if grille[x,y-1] != -1 and grille[x,y-1] != 2:
+                fall = False
 
-def action_bois(coord,grille):
-    changements = []
-    i,j = coord
-    if j>1:
-        if grille[i,j-1]==-1:
-            changements.append((i,j,-1,0))
-            changements.append((i,j-1,4,0))
-        iswater = False
+        if fall:
+            for x,y in pierre:
+                if grille[x,y+1] != 2 and grille[x,y-1] == 2:
+                    changements.append((x,y,-1,0))
+                if grille[x,y-1] == -1:
+                    changements.append((x,y-1,2,0))
+
+        return changements
+
+class Bois(Pixel):
+    def __init__(self):
+        color = (125, 83, 41)
+        Pixel.__init__(color)
+
+    def update(self,coord,grille):
+        changements = []
+        i,j = coord
+        if j>1:
+            if grille[i,j-1]==-1:
+                changements.append((i,j,-1,0))
+                changements.append((i,j-1,4,0))
+            iswater = False
+            for e1 in [-1,0,1]:
+                for e2 in [-1,0,1]:
+                    if grille[i+e1,j+e2] == 1:
+                        iswater = True
+                        changements.append((i+e1,j+e2,-1,100))
+
+            if iswater:
+                j_add = j+1
+                while grille[i,j_add] == 4:
+                    j_add += 1
+                if grille[i,j_add] == -1:
+                    changements.append((i,j_add,4,100))
+
+        return changements
+
+class Electricity(Pixel):
+    def __init__(self):
+        color = (255, 255, 0)
+        Pixel.__init__(color)
+
+    def update(self,coord,grille):
+        changements = []
+        e1 = random.randint(-1,1); e2 = random.randint(-1,1)
+        i,j = coord
+
+        changements.append((i,j,-1,0))
+        if grille[i+e1,j+e2] == -1:
+            changements.append((i+e1, j+e2, 5,0))
+
+        return changements
+
+class Wire(Pixel):
+    def __init__(self):
+        color = (207, 70, 70)
+        Pixel.__init__(color)
+
+    def update(self,coord, grille):
+        changements = []
+        i, j = coord
+
+        exit = False
         for e1 in [-1,0,1]:
             for e2 in [-1,0,1]:
-                if grille[i+e1,j+e2] == 1:
-                    iswater = True
+                if grille[i+e1,j+e2] == 5:
                     changements.append((i+e1,j+e2,-1,0))
-
-        if iswater:
-            j_add = j+1
-            while grille[i,j_add] == 4:
-                j_add += 1
-            if grille[i,j_add] == -1:
-                changements.append((i,j_add,4,100))
-
-    return changements
-
-def action_electricity(coord,grille):
-    changements = []
-    e1 = random.randint(-1,1); e2 = random.randint(-1,1)
-    i,j = coord
-
-    changements.append((i,j,-1,0))
-    if grille[i+e1,j+e2] == -1:
-        changements.append((i+e1, j+e2, 5,0))
-
-    return changements
-
-def action_wire(coord, grille):
-    changements = []
-    i, j = coord
-
-    exit = False
-    for e1 in [-1,0,1]:
-        for e2 in [-1,0,1]:
-            if grille[i+e1,j+e2] == 5:
-                changements.append((i+e1,j+e2,-1,0))
-                changements.append((i, j, 7,0))
-                exit = True
+                    changements.append((i, j, 7,0))
+                    exit = True
+                    break
+                elif grille[i+e1,j+e2] == 7:
+                    changements.append((i, j, 7,0))
+                    exit = True
+                    break
+            if exit:
                 break
-            elif grille[i+e1,j+e2] == 7:
-                changements.append((i, j, 7,0))
-                exit = True
-                break
-        if exit:
-            break
 
-    return changements
+        return changements
 
-def action_electrified_wire(coord, grille):
-    changements = []
-    i, j = coord
+if __name__ == "__main__":
 
-    changements.append((i, j, 8,0))
+    N = 200; tps = 60
+    pixelEngine = PixelEngine(N,tps) #PixelEngine.load("pixelEngine.obj")#
 
-    return changements
-
-def action_used_wire(coord, grille):
-    changements = []
-    i, j = coord
-
-    changements.append((i,j,6,0))
-
-    return changements
-
-sable = Pixel((200,150,0),action_sable)
-eau = Pixel((0,0,180),action_eau)
-pierre = Pixel((150,150,150),action_pierre)
-gaz = Pixel((0,180,0),action_gaz)
-bois = Pixel((125, 83, 41),action_bois)
-electricity= Pixel((255, 255, 0),action_electricity)
-wire= Pixel((207, 70, 70),action_wire)
-electrified_wire= Pixel((235, 193, 59),action_electrified_wire)
-used_wire= Pixel((105, 35, 35),action_used_wire)
-
-pixels = [sable,eau,pierre,gaz,bois,electricity,wire,electrified_wire,used_wire]
-N = 100; tps = 60
-pixelEngine = PixelEngine(N,pixels,tps) #PixelEngine.load("pixelEngine.obj")#
-
-fenetre = Fenetre(pixelEngine, 1200, 800)
-fenetre.run()
-pixelEngine.save("pixelEngine.obj")
-
-
-
-
-
-
-
-
+    fenetre = Fenetre(pixelEngine, 1200, 800)
+    fenetre.run()
+    pixelEngine.save("pixelEngine.obj")
 
 
 

@@ -23,13 +23,13 @@ class Canvas:
         #couleurs
         self.fond_color = (220,220,220)
 
-    def pixel(self,x,y):
+    def coord_to_pixel(self,x,y):
         resx = int(self.echelle*(x-self.X)) + int(self.taillex/2)
         resy = int(-self.echelle*(y-self.Y)) + int(self.tailley/2)
 
         return (resx,resy)
 
-    def coord(self,px,py):
+    def pixel_to_coord(self,px,py):
         return ((px-int(self.taillex/2))/self.echelle+self.X,-(py-int(self.tailley/2))/self.echelle+self.Y )
 
     def afficher(self):
@@ -100,3 +100,5 @@ class Canvas:
 
                 else:
                     self.handleEvent(event)
+
+
