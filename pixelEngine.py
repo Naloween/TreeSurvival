@@ -42,6 +42,19 @@ class Pixel:
 
         return changements
 
+    def echange(self,coord,engine,dest):
+        changements = []
+        i,j = coord
+        i2,j2 = dest
+
+        changements.append((i,j,engine.grille_pixels[i2,j2],0,engine.grille_pixels))
+        changements.append((i2,j2,self,0,engine.grille_pixels))
+        changements.append([i,j,engine.grille_groupes[i2,j2],0,engine.grille_groupes])
+        changements.append([i2,j2,engine.grille_groupes[i,j],0,engine.grille_groupes])
+
+        return changements
+
+
 class GroupePixel:
     def __init__(self,pixels_coord):
         self.pixels_coord = pixels_coord
@@ -61,7 +74,7 @@ class PixelEngine:
 
         self.to_update = []
         self.grille_to_update = np.zeros((N,N), dtype=bool) #enegistre les pixels déjà dans le to_update
-        self.grille_changed = np.zeros((N,N),dtype=bool) #enregistre les pixels qui ont déjà étés changés au cours du tic
+        self.grille_changed = np.zeros((N,N,2),dtype=bool) #enregistre les pixels qui ont déjà étés changés au cours du tic
 
         self.maxTimer = 500
         self.start_index = 0
@@ -75,13 +88,13 @@ class PixelEngine:
 
     def coord_to_grille(self,x,y):
         if x<0:
-            i = self.N//2+int(x)-1
+            i = self.N//2+int(x)-2
         else:
             i = self.N//2+int(x)
         if y>0:
             j = self.N // 2 + int(y)+1
         else:
-            j =self.N//2+int(y)
+            j =self.N//2+int(y)-1
         return i,j
 
     def grille_to_coord(self,i,j):
@@ -118,12 +131,20 @@ class PixelEngine:
                 # évite les conflits
                 apply_changes = True
                 for change in changes:
-                    if self.grille_changed[change[0],change[1]] == False:
-                        self.grille_changed[change[0],change[1]] = True
-                        reset_grille_changed.append((change[0],change[1]))
+                    if change[4] is self.grille_pixels:
+                        if self.grille_changed[change[0],change[1],0] == False:
+                            self.grille_changed[change[0],change[1],0] = True
+                            reset_grille_changed.append((change[0],change[1]))
+                        else:
+                            apply_changes = False
+                            break
                     else:
-                        apply_changes = False
-                        break
+                        if self.grille_changed[change[0],change[1],1] == False:
+                            self.grille_changed[change[0],change[1],1] = True
+                            reset_grille_changed.append((change[0],change[1]))
+                        else:
+                            apply_changes = False
+                            break
 
                 #enregistre les changements à appliquer
                 if apply_changes:
@@ -137,7 +158,8 @@ class PixelEngine:
 
             #rest pixels changed
             for i,j in reset_grille_changed:
-                self.grille_changed[i, j] = False
+                self.grille_changed[i, j,0] = False
+                self.grille_changed[i, j,1] = False
 
             #update grille
             for k in range(len(self.changements[self.start_index])) :
@@ -234,6 +256,12 @@ class Fenetre(Canvas):
                         px,py = self.coord_to_pixel(x,y)
                         w,h = self.echelle*1, self.echelle*1
                         pygame.draw.rect(self.canvas,color,(px,py,w+1,h+1))
+
+                        #groupes
+                        # color = (0,0,0)
+                        # if self.monde.grille_groupes[i,j] != None:
+                        #     color = self.monde.grille_groupes[i,j].color
+                        # pygame.draw.rect(self.canvas,color,(px,py,w//2+1,h//2+1))
             self.graphic_changes = False
 
         if self.t<time.time():
@@ -252,6 +280,7 @@ class Fenetre(Canvas):
 
             #display pixel to draw
             pygame.draw.rect(self.canvas,self.pixel.color,(0,self.tailley-100,100,100))
+
 
         # update zone
         # for (i,j) in self.monde.to_update:
@@ -314,7 +343,7 @@ class Fenetre(Canvas):
                     self.pixel = Sable()
                 elif self.pixel_id == 1:
                     self.pixel = Eau()
-                
+
             elif event.key == 13: #entree
                 self.play = not(self.play)
             else:
@@ -333,7 +362,8 @@ class Fenetre(Canvas):
             elif self.pixel_id == 2:
                 self.pixel = Pierre()
 
-            self.monde.add_changement(i,j,self.pixel,0,self.monde.grille_pixels)
+            if i>0 and i<self.monde.N-1 and j>0 and j<self.monde.N-1 and self.monde.grille_pixels[i,j] == None:
+                self.monde.add_changement(i,j,self.pixel,0,self.monde.grille_pixels)
 
         #TODO: Mettre les evenements que l'on veut
 
@@ -348,8 +378,10 @@ class Sable(Pixel):
         i,j = coord
         if j>1:
             if engine.grille_pixels[i,j-1]==None or type(engine.grille_pixels[i,j-1]) == Eau:
-                changements.append((i,j,engine.grille_pixels[i,j-1],0,engine.grille_pixels))
-                changements.append((i,j-1,self,0,engine.grille_pixels))
+                changements += self.echange(coord,engine,(i,j-1))
+
+                # changements.append((i,j,engine.grille_pixels[i,j-1],0,engine.grille_pixels))
+                # changements.append((i,j-1,self,0,engine.grille_pixels))
             elif engine.grille_pixels[i-1,j-1] == None or type(engine.grille_pixels[i-1,j-1]) == Eau:
                 changements.append((i,j,engine.grille_pixels[i-1,j-1],0,engine.grille_pixels))
                 changements.append((i-1,j-1,self,0,engine.grille_pixels))
@@ -429,12 +461,56 @@ class Pierre(Pixel):
     def update(self,coord,engine):
         changements = []
         i,j = coord
+        pixels_coord_groupe = [(i,j)]
+        joinGroupe = False
 
         for e1 in [-1,0,1]:
             for e2 in [-1,0,1]:
-                if type(engine.grille_pixels[i,j])==Pierre and (e1,e2) != (0,0):
-                    pass
+                if type(engine.grille_pixels[i+e1,j+e2])==Pierre and (e1,e2) != (0,0):
+                    if engine.grille_groupes[i+e1,j+e2]==None:
+                        pixels_coord_groupe.append((i+e1,j+e2))
+                    elif not(joinGroupe):
+                        joinGroupe = True
+                        groupe = engine.grille_groupes[i+e1,j+e2]
+                        changements.append((i,j,groupe,0,engine.grille_groupes))
+                        groupe.pixels_coord.append((i,j))
+                        engine.grille_pixels[i,j].color = groupe.color
 
+        if not(joinGroupe) and len(pixels_coord_groupe)>1:
+            groupe = GroupePierre(pixels_coord_groupe,engine)
+            for i2,j2 in pixels_coord_groupe:
+                changements.append((i2,j2,groupe,0,engine.grille_groupes))
+
+        return changements
+
+class GroupePierre(GroupePixel):
+    def __init__(self,pixels_coord,engine):
+        GroupePixel.__init__(self,pixels_coord)
+        self.color = [ random.randint(0,255) for k in range(3) ]
+
+        for i,j in pixels_coord:
+            engine.grille_pixels[i,j].color = self.color
+
+    def add_pixel(self,i,j,engine):
+        pixel = engine.grille_pixels[i,j]
+        pixel.color = self.color
+        engine.grille_groupes[i,j] = self
+        self.pixels_coord.append((i,j))
+
+    def update(self,coord,engine):
+        i,j = coord
+        changements = []
+
+        engine.grille_pixels[i,j].color = self.color
+
+        # apply_changes = True
+        # for i,j in self.pixels_coord:
+        #     if engine.grille_pixels[i,j-1]==None:
+        #         if engine.grille_groupes[i,j+1] != self:
+        #             changements.append((i,j,None,0,engine.grille_pixels))
+        #             changements.append((i, j, None, 0, engine.grille_groupes))
+        #
+        #             changements.append((i, j-1, self, 0, engine.grille_pixels))
         return changements
 
 class Bois(Pixel):
